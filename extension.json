@@ -1,0 +1,1 @@
+{"id":"realtime","name":"","version":"0.1.0","category":"feature","authors":["Bias"],"dependencies":["core","core","users","discussions"],"django":{"app_config":"bias_ext_realtime.backend.apps.ExtensionConfig","app_label":"realtime","migration_module":"bias_ext_realtime.backend.django_migrations"},"backend":{"entry":"bias_ext_realtime.backend.ext"}}
