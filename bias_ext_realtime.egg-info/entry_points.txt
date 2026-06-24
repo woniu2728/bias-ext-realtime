@@ -1,0 +1,2 @@
+[bias.extensions]
+realtime = bias_ext_realtime.backend.ext:extend
