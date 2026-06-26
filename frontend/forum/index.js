@@ -1,4 +1,4 @@
-import { extendForum } from '@bias/forum'
+import { extendForum } from '@bias/core/forum'
 
 export const extend = [
   extendForum(registerRealtimeForum),
