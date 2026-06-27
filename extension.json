@@ -22,5 +22,8 @@
   "extra": {
     "auto_install": true,
     "auto_enable": true
+  },
+  "security": {
+    "capabilities_notice": "Realtime extension; exposes live update transport hooks and reads user/discussion visibility state."
   }
 }
