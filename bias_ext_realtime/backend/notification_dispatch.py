@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from bias_core.extensions.runtime import get_runtime_notification_service
-
 from bias_ext_realtime.backend.websocket_service import WebSocketService
+
+
+def get_runtime_notification_service(*args, **kwargs):
+    from bias_core.extensions.runtime import get_runtime_notification_service as runtime_get_notification_service
+
+    return runtime_get_notification_service(*args, **kwargs)
 
 
 def dispatch_notification_batch(

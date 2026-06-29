@@ -10,7 +10,6 @@ from django.test import TestCase, override_settings
 from ninja_jwt.tokens import RefreshToken
 
 from bias_core.extensions.platform import DomainEvent
-from bias_core.extensions.runtime import get_runtime_user_model
 from bias_core.extensions.testing import (
     AuditLog,
     ExtensionRuntimeTestMixin,
@@ -23,6 +22,16 @@ from bias_core.extensions.testing import (
 )
 from bias_ext_realtime.backend.notification_dispatch import dispatch_notification_batch
 from bias_ext_realtime.backend.websocket_service import WebSocketService
+
+
+def _runtime_facade(name: str):
+    from importlib import import_module
+
+    return getattr(import_module("bias_core.extensions.runtime"), name)
+
+
+def get_runtime_user_model(*args, **kwargs):
+    return _runtime_facade("get_runtime_user_model")(*args, **kwargs)
 
 
 class RuntimeModelProxy:
