@@ -9,7 +9,10 @@
   "dependencies": [
     "core",
     "users",
-    "discussions"
+    "content"
+  ],
+  "optional_dependencies": [
+    "notifications"
   ],
   "django": {
     "app_config": "bias_ext_realtime.backend.apps.RealtimeExtensionConfig",

@@ -7,8 +7,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from bias_core.extensions.platform import has_forum_permission
-from bias_core.extensions.forum import can_view_realtime_discussion, resolve_realtime_visible_discussion_ids
-from bias_core.extensions.forum import OnlineUserService
+from bias_core.extensions.platform import can_view_realtime_discussion, resolve_realtime_visible_discussion_ids
+from bias_core.extensions.platform import OnlineUserService
 from bias_core.extensions.platform import get_extension_settings
 
 

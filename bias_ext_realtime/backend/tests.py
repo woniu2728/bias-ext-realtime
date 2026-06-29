@@ -9,14 +9,75 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from ninja_jwt.tokens import RefreshToken
 
-from bias_core.models import AuditLog, Setting
-from bias_core.online_service import OnlineUserService
-from bias_core.queue_service import QueueService
-from bias_core.settings_service import clear_runtime_setting_caches
-from extensions.notifications.backend.events import NotificationCreatedEvent
-from bias_ext_realtime.backend.ext import dispatch_notification_batch
+from bias_core.extensions.platform import DomainEvent
+from bias_core.extensions.runtime import get_runtime_user_model
+from bias_core.extensions.testing import (
+    AuditLog,
+    ExtensionRuntimeTestMixin,
+    OnlineUserService,
+    QueueService,
+    Setting,
+    build_extension_test_host,
+    clear_runtime_setting_caches,
+    get_enabled_extension_runtime_entries,
+)
+from bias_ext_realtime.backend.notification_dispatch import dispatch_notification_batch
 from bias_ext_realtime.backend.websocket_service import WebSocketService
-from extensions.users.backend.models import User
+
+
+class RuntimeModelProxy:
+    def __init__(self, resolver):
+        self._resolver = resolver
+
+    def __getattr__(self, name):
+        return getattr(self._resolver(), name)
+
+
+class NotificationCreatedEvent(DomainEvent):
+    def __init__(self, notification_ids):
+        self.notification_ids = tuple(notification_ids)
+
+
+User = RuntimeModelProxy(get_runtime_user_model)
+
+
+class RealtimeExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
+    def test_notification_integration_is_optional(self):
+        application = build_extension_test_host("realtime")
+        listener_names = {
+            listener.handler.__name__
+            for listener in application.events.get_listeners(extension_id="realtime")
+        }
+        websocket_route_names = {
+            route.name
+            for route in application.websocket_routes.get_routes(extension_id="realtime")
+        }
+
+        self.assertIsNone(application.get_service("notifications.service"))
+        self.assertNotIn("dispatch_notification_batch", listener_names)
+        self.assertNotIn("realtime.notifications", websocket_route_names)
+        self.assertIn("realtime.online", websocket_route_names)
+        self.assertIn("realtime.forum", websocket_route_names)
+        self.assertIn("realtime.discussion", websocket_route_names)
+
+    def test_notification_integration_registers_when_notifications_enabled(self):
+        application = build_extension_test_host("notifications", "realtime")
+        from bias_ext_notifications.backend.events import NotificationCreatedEvent as RuntimeNotificationCreatedEvent
+
+        listeners = application.events.get_listeners(extension_id="realtime")
+        listener_names = {
+            listener.handler.__name__
+            for listener in listeners
+        }
+        websocket_route_names = {
+            route.name
+            for route in application.websocket_routes.get_routes(extension_id="realtime")
+        }
+
+        self.assertIsNotNone(application.get_service("notifications.service"))
+        self.assertIn("dispatch_notification_batch", listener_names)
+        self.assertTrue(any(listener.event_type is RuntimeNotificationCreatedEvent for listener in listeners))
+        self.assertIn("realtime.notifications", websocket_route_names)
 
 
 class RealtimeWebSocketPayloadTests(TestCase):
@@ -55,8 +116,8 @@ class RealtimeNotificationDispatchTests(TestCase):
             }),
         }
 
-        with patch("bias_ext_realtime.backend.ext.get_runtime_notification_service", return_value=service):
-            with patch("bias_ext_realtime.backend.ext.WebSocketService.send_notification_to_user") as send:
+        with patch("bias_ext_realtime.backend.notification_dispatch.get_runtime_notification_service", return_value=service):
+            with patch("bias_ext_realtime.backend.notification_dispatch.WebSocketService.send_notification_to_user") as send:
                 dispatch_notification_batch(NotificationCreatedEvent(notification_ids=(10,)))
 
         service["load_realtime_notifications"].assert_called_once_with([10])
@@ -89,8 +150,6 @@ class RealtimeForumSettingsTests(TestCase):
         self.assertFalse(response.json()["realtime_typing_enabled"])
 
     def test_runtime_entry_exposes_realtime_settings_schema(self):
-        from bias_core.extensions.runtime_service import get_enabled_extension_runtime_entries
-
         entries = get_enabled_extension_runtime_entries(product_visible_only=True)
         realtime = next(item for item in entries if item["id"] == "realtime")
 

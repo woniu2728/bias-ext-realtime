@@ -4,8 +4,10 @@ version = "0.1.0"
 description = "Bias realtime Extension"
 requires-python = ">=3.11"
 dependencies = ["bias-core>=0.1,<0.2"]
+
 [project.entry-points."bias.extensions"]
 realtime = "bias_ext_realtime.backend.ext:extend"
+
 [tool.setuptools]
 include-package-data = true
 
@@ -16,5 +18,12 @@ include = ["bias_ext_realtime*"]
 [tool.setuptools.data-files]
 "bias_extensions/realtime" = ["extension.json"]
 "bias_extensions/realtime/frontend/admin" = ["frontend/admin/index.js"]
-"bias_extensions/realtime/frontend/forum" = ["frontend/forum/forumRealtime.js", "frontend/forum/forumRealtimeStore.js", "frontend/forum/index.js", "frontend/forum/nodeSdk.js", "frontend/forum/realtimeFrontendRegistry.js", "frontend/forum/sdk.d.ts", "frontend/forum/sdk.js"]
-
+"bias_extensions/realtime/frontend/forum" = [
+  "frontend/forum/forumRealtime.js",
+  "frontend/forum/forumRealtimeStore.js",
+  "frontend/forum/index.js",
+  "frontend/forum/nodeSdk.js",
+  "frontend/forum/realtimeFrontendRegistry.js",
+  "frontend/forum/sdk.d.ts",
+  "frontend/forum/sdk.js",
+]
