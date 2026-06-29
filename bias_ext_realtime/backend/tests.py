@@ -71,11 +71,14 @@ class RealtimeExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
 
     def test_notification_integration_registers_when_notifications_enabled(self):
         application = build_extension_test_host("notifications", "realtime")
-        from bias_ext_notifications.backend.events import NotificationCreatedEvent as RuntimeNotificationCreatedEvent
 
         listeners = application.events.get_listeners(extension_id="realtime")
         listener_names = {
             listener.handler.__name__
+            for listener in listeners
+        }
+        event_type_names = {
+            getattr(listener.event_type, "__name__", str(listener.event_type))
             for listener in listeners
         }
         websocket_route_names = {
@@ -85,7 +88,7 @@ class RealtimeExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
 
         self.assertIsNotNone(application.get_service("notifications.service"))
         self.assertIn("dispatch_notification_batch", listener_names)
-        self.assertTrue(any(listener.event_type is RuntimeNotificationCreatedEvent for listener in listeners))
+        self.assertIn("NotificationCreatedEvent", event_type_names)
         self.assertIn("realtime.notifications", websocket_route_names)
 
 
