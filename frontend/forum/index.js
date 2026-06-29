@@ -1,10 +1,15 @@
 import { extendForum } from '@bias/core/forum'
+import { useForumRealtimeStore } from '@bias/realtime'
 
 export const extend = [
   extendForum(registerRealtimeForum),
 ]
 
 function registerRealtimeForum(forum) {
+  forum.service('realtime.forum', {
+    store: useForumRealtimeStore,
+  })
+
   forum.uiCopy({
     key: 'forum-realtime-status-reconnecting',
     moduleId: 'realtime',
