@@ -3,10 +3,10 @@ from __future__ import annotations
 from bias_ext_realtime.backend.websocket_service import WebSocketService
 
 
-def get_runtime_notification_service(*args, **kwargs):
-    from bias_core.extensions.runtime import get_runtime_notification_service as runtime_get_notification_service
+def get_notification_service():
+    from bias_core.extensions.runtime import get_runtime_service
 
-    return runtime_get_notification_service(*args, **kwargs)
+    return get_runtime_service("notifications.service")
 
 
 def dispatch_notification_batch(
@@ -21,7 +21,7 @@ def dispatch_notification_batch(
 
     service = notification_service
     if service is None:
-        service = get_runtime_notification_service()
+        service = get_notification_service()
     if service is None:
         return
     loader = _runtime_method(service, "load_realtime_notifications")

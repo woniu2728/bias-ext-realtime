@@ -10,6 +10,10 @@ from bias_core.extensions.platform import has_forum_permission
 from bias_core.extensions.platform import can_view_realtime_discussion, resolve_realtime_visible_discussion_ids
 from bias_core.extensions.platform import OnlineUserService
 from bias_core.extensions.platform import get_extension_settings
+from bias_ext_realtime.backend.websocket_service import (
+    record_realtime_connection,
+    record_realtime_subscription,
+)
 
 
 class NotificationConsumer(AsyncWebsocketConsumer):
@@ -26,6 +30,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             self.notification_group_name,
             self.channel_name,
         )
+        record_realtime_connection(1)
+        record_realtime_subscription(1)
 
         await self.accept()
         await self.send(text_data=json.dumps({
@@ -39,6 +45,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 self.notification_group_name,
                 self.channel_name,
             )
+            record_realtime_subscription(-1)
+        record_realtime_connection(-1)
 
     async def receive(self, text_data):
         try:
@@ -91,6 +99,8 @@ class OnlineUsersConsumer(AsyncWebsocketConsumer):
             self.online_group_name,
             self.channel_name,
         )
+        record_realtime_connection(1)
+        record_realtime_subscription(1)
 
         await self.accept()
 
@@ -131,6 +141,8 @@ class OnlineUsersConsumer(AsyncWebsocketConsumer):
             self.online_group_name,
             self.channel_name,
         )
+        record_realtime_subscription(-1)
+        record_realtime_connection(-1)
 
     async def receive(self, text_data):
         try:
@@ -188,6 +200,8 @@ class DiscussionConsumer(AsyncWebsocketConsumer):
             self.discussion_group_name,
             self.channel_name,
         )
+        record_realtime_connection(1)
+        record_realtime_subscription(1)
         await self.accept()
         await self.send(text_data=json.dumps({
             "type": "connection_established",
@@ -201,6 +215,8 @@ class DiscussionConsumer(AsyncWebsocketConsumer):
                 self.discussion_group_name,
                 self.channel_name,
             )
+            record_realtime_subscription(-1)
+        record_realtime_connection(-1)
 
     async def receive(self, text_data):
         try:
@@ -262,6 +278,7 @@ class ForumRealtimeConsumer(AsyncWebsocketConsumer):
         self.user = self.scope["user"]
         self.discussion_group_names = set()
         await self.accept()
+        record_realtime_connection(1)
         await self.send(text_data=json.dumps({
             "type": "connection_established",
             "message": "已连接到论坛实时服务",
@@ -270,7 +287,9 @@ class ForumRealtimeConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         for group_name in list(self.discussion_group_names):
             await self.channel_layer.group_discard(group_name, self.channel_name)
+        record_realtime_subscription(-len(self.discussion_group_names))
         self.discussion_group_names.clear()
+        record_realtime_connection(-1)
 
     async def receive(self, text_data):
         try:
@@ -348,6 +367,7 @@ class ForumRealtimeConsumer(AsyncWebsocketConsumer):
                 continue
             await self.channel_layer.group_add(group_name, self.channel_name)
             self.discussion_group_names.add(group_name)
+            record_realtime_subscription(1)
         return visible_ids
 
     async def unsubscribe_discussions(self, discussion_ids):
@@ -358,6 +378,7 @@ class ForumRealtimeConsumer(AsyncWebsocketConsumer):
                 continue
             await self.channel_layer.group_discard(group_name, self.channel_name)
             self.discussion_group_names.remove(group_name)
+            record_realtime_subscription(-1)
             removed_ids.append(discussion_id)
         return removed_ids
 

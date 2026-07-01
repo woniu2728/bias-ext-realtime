@@ -26,6 +26,21 @@
     "auto_install": true,
     "auto_enable": true
   },
+  "performance_contracts": [
+    {
+      "name": "realtime_metrics",
+      "message": "realtime metrics include connections, subscriptions and message counters.",
+      "required_fields": [
+        "active_connections",
+        "active_subscriptions",
+        "connection_count",
+        "failed_send_count",
+        "message_count",
+        "subscription_count"
+      ],
+      "missing_fields": []
+    }
+  ],
   "security": {
     "capabilities_notice": "Realtime extension; exposes live update transport hooks and reads user/discussion visibility state."
   }

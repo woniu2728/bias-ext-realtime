@@ -5,10 +5,14 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from channels.testing import WebsocketCommunicator
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from ninja_jwt.tokens import RefreshToken
 
+from bias_ext_realtime.backend.consumers import ForumRealtimeConsumer
 from bias_core.extensions.platform import DomainEvent
 from bias_core.extensions.testing import (
     AuditLog,
@@ -22,6 +26,7 @@ from bias_core.extensions.testing import (
 )
 from bias_ext_realtime.backend.notification_dispatch import dispatch_notification_batch
 from bias_ext_realtime.backend.websocket_service import WebSocketService
+from bias_ext_realtime.backend.websocket_service import get_realtime_metrics, reset_realtime_metrics
 
 
 def _runtime_facade(name: str):
@@ -93,6 +98,9 @@ class RealtimeExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
 
 
 class RealtimeWebSocketPayloadTests(TestCase):
+    def setUp(self):
+        reset_realtime_metrics()
+
     def test_discussion_event_payload_converts_datetime_before_channel_send(self):
         class DummyChannelLayer:
             def __init__(self):
@@ -115,6 +123,82 @@ class RealtimeWebSocketPayloadTests(TestCase):
         payload = channel_layer.calls[0][1]
         self.assertEqual(payload["event"]["payload"]["post"]["created_at"], "2026-06-11T15:19:37Z")
 
+        metrics = get_realtime_metrics()
+        self.assertEqual(metrics["message_count"], 1)
+        self.assertEqual(metrics["failed_send_count"], 0)
+        self.assertEqual(metrics["last_group"], "discussion_7")
+        self.assertEqual(metrics["last_event_type"], "forum_event_message")
+
+
+@override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
+class RealtimeForumWebSocketConsumerSmokeTests(TestCase):
+    def setUp(self):
+        reset_realtime_metrics()
+        self.user = User.objects.create_user(
+            username="forum-ws-user",
+            email="forum-ws-user@example.com",
+            password="password123",
+            is_email_confirmed=True,
+        )
+
+    def test_forum_websocket_subscribes_and_receives_discussion_channel_event(self):
+        async_to_sync(self._run_forum_websocket_smoke)()
+
+    async def _run_forum_websocket_smoke(self):
+        communicator = WebsocketCommunicator(ForumRealtimeConsumer.as_asgi(), "/ws/forum/")
+        communicator.scope["user"] = self.user
+
+        with patch(
+            "bias_ext_realtime.backend.consumers.resolve_realtime_visible_discussion_ids",
+            return_value=[101],
+        ):
+            connected, _ = await communicator.connect()
+            self.assertTrue(connected)
+
+            initial = await communicator.receive_json_from()
+            self.assertEqual(initial["type"], "connection_established")
+
+            await communicator.send_json_to({
+                "type": "subscribe_discussions",
+                "discussion_ids": [101, 999],
+            })
+            subscribed = await communicator.receive_json_from()
+            self.assertEqual(subscribed, {
+                "type": "subscribed",
+                "discussion_ids": [101],
+            })
+            self.assertEqual(get_realtime_metrics()["active_connections"], 1)
+            self.assertEqual(get_realtime_metrics()["active_subscriptions"], 1)
+
+            channel_layer = get_channel_layer()
+            await channel_layer.group_send(
+                "discussion_101",
+                {
+                    "type": "forum_event_message",
+                    "event": {
+                        "scope": "discussion",
+                        "discussion_id": 101,
+                        "event_type": "post.created",
+                        "payload": {
+                            "post": {
+                                "id": 704,
+                                "number": 3,
+                                "content": "Realtime consumer smoke reply",
+                            },
+                        },
+                    },
+                },
+            )
+            event_message = await communicator.receive_json_from()
+            self.assertEqual(event_message["type"], "forum_event")
+            self.assertEqual(event_message["event"]["discussion_id"], 101)
+            self.assertEqual(event_message["event"]["event_type"], "post.created")
+            self.assertEqual(event_message["event"]["payload"]["post"]["content"], "Realtime consumer smoke reply")
+
+        await communicator.disconnect()
+        self.assertEqual(get_realtime_metrics()["active_connections"], 0)
+        self.assertEqual(get_realtime_metrics()["active_subscriptions"], 0)
+
 
 class RealtimeNotificationDispatchTests(TestCase):
     def test_notification_created_event_is_serialized_and_sent_to_user_channel(self):
@@ -128,7 +212,7 @@ class RealtimeNotificationDispatchTests(TestCase):
             }),
         }
 
-        with patch("bias_ext_realtime.backend.notification_dispatch.get_runtime_notification_service", return_value=service):
+        with patch("bias_ext_realtime.backend.notification_dispatch.get_notification_service", return_value=service):
             with patch("bias_ext_realtime.backend.notification_dispatch.WebSocketService.send_notification_to_user") as send:
                 dispatch_notification_batch(NotificationCreatedEvent(notification_ids=(10,)))
 
